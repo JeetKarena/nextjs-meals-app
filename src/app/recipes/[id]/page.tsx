@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { doc, getDoc } from "firebase/firestore";
@@ -15,10 +15,10 @@ interface Recipe {
   imageUrl: string;
 }
 
-export default function RecipePage({ params }: { params: Promise<{ id: string }> | { id: string } }) {
-  // Unwrap params with React.use() to follow Next.js recommendation
-  const resolvedParams = 'then' in params ? use(params) : params;
-  const recipeId = resolvedParams.id;
+// Correct the type for the params prop
+export default function RecipePage({ params }: { params: { id: string } }) {
+  // Directly access the id from params
+  const { id: recipeId } = params;
   
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);

@@ -40,8 +40,8 @@ jobs:
           echo "NEXT_PRIVATE_REDIS_USERNAME=${{ secrets.NEXT_PRIVATE_REDIS_USERNAME }}" >> .env.local
           echo "NEXT_PRIVATE_REDIS_PASSWORD=${{ secrets.NEXT_PRIVATE_REDIS_PASSWORD }}" >> .env.local
 
-      - name: Run Gulp tasks
-        run: gulp
+      - name: Lint code
+        run: npm run lint
 
       - name: Build Next.js app
         run: npm run build
@@ -54,3 +54,26 @@ jobs:
         with:
           name: nextjs-build
           path: .next
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3

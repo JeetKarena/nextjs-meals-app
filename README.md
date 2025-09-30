@@ -16,7 +16,7 @@ A modern recipe management app built with [Next.js](https://nextjs.org/), [Fireb
 ### 1. Clone the Repository
 
 ```sh
-git clone https://github.com/<your-username>/<your-repo-name>.git
+git clone https://github.com/JeetKarena/nextjs-meals-app.git
 cd meals-app
 ```
 

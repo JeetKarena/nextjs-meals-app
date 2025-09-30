@@ -38,11 +38,11 @@ export async function addRecipe(formData: FormData) {
     await invalidateCache("home:randomRecipe");
     await invalidateCache("home:featuredRecipes");
     
-    // Redirect back to home after successful submission
-    redirect('/');
-    
   } catch (error) {
     console.error("Error adding recipe:", error);
     return { error: 'Failed to add recipe. Please try again.' };
   }
+  
+  // Redirect back to home after successful submission (outside try-catch)
+  redirect('/');
 }

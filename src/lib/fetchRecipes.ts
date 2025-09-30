@@ -15,12 +15,25 @@ interface Recipe {
   ingredients: string[];
 }
 
+// Helper function to safely serialize Firebase data to plain objects
+function serializeRecipe(recipeData: { id: string; [key: string]: unknown }): Recipe {
+  return {
+    id: recipeData.id,
+    title: (recipeData.title as string) || "",
+    category: (recipeData.category as string) || "",
+    imageUrl: (recipeData.imageUrl as string) || "",
+    instructions: (recipeData.instructions as string) || "",
+    ingredients: Array.isArray(recipeData.ingredients) ? recipeData.ingredients as string[] : [],
+  };
+}
 
 export async function fetchRecipes() {
   // First, try to get from cache
   const cachedRandomRecipe = await getCache<Recipe>(RANDOM_RECIPE_CACHE_KEY);
-  const cachedFeaturedRecipes = await getCache<Recipe[]>(FEATURED_RECIPES_CACHE_KEY);
-  
+  const cachedFeaturedRecipes = await getCache<Recipe[]>(
+    FEATURED_RECIPES_CACHE_KEY
+  );
+
   if (cachedRandomRecipe && cachedFeaturedRecipes) {
     console.log("Serving from cache");
     return {
@@ -29,7 +42,7 @@ export async function fetchRecipes() {
       fromCache: true,
     };
   }
-  
+
   // If not in cache, fetch from Firestore
   try {
     const recipesRef = collection(db, "recipes");
@@ -41,10 +54,12 @@ export async function fetchRecipes() {
       return { randomRecipe: null, featuredRecipes: [], fromCache: false };
     }
 
-    const recipesData = recipesSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Recipe[];
+    const recipesData = recipesSnapshot.docs.map((doc) =>
+      serializeRecipe({
+        id: doc.id,
+        ...doc.data(),
+      })
+    );
 
     // Select a random recipe for the hero section
     const randomIndex = Math.floor(Math.random() * recipesData.length);
@@ -54,11 +69,11 @@ export async function fetchRecipes() {
     const featuredRecipes = recipesData
       .filter((_, index) => index !== randomIndex)
       .slice(0, 9);
-    
+
     // Store in cache
     await setCache(RANDOM_RECIPE_CACHE_KEY, randomRecipe, CACHE_EXPIRY);
     await setCache(FEATURED_RECIPES_CACHE_KEY, featuredRecipes, CACHE_EXPIRY);
-    
+
     return { randomRecipe, featuredRecipes, fromCache: false };
   } catch (error) {
     console.error("Error fetching recipes:", error);

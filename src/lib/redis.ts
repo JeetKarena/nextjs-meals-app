@@ -1,64 +1,50 @@
-import { Redis } from "ioredis";
+import Redis from "ioredis";
 
 // Validate environment variables
 if (!process.env.NEXT_PRIVATE_REDIS_HOST) {
-  throw new Error("NEXT_PRIVATE_REDIS_HOST environment variable is required");
+  console.warn("NEXT_PRIVATE_REDIS_HOST not found, Redis will be disabled");
 }
 
-if (!process.env.NEXT_PRIVATE_REDIS_PORT) {
-  throw new Error("NEXT_PRIVATE_REDIS_PORT environment variable is required");
+let redis: Redis | null = null;
+
+if (process.env.NEXT_PRIVATE_REDIS_HOST && process.env.NEXT_PRIVATE_REDIS_PORT) {
+  try {
+    redis = new Redis({
+      host: process.env.NEXT_PRIVATE_REDIS_HOST.replace(/[;"]/g, ""),
+      port: parseInt(process.env.NEXT_PRIVATE_REDIS_PORT, 10),
+      username: process.env.NEXT_PRIVATE_REDIS_USERNAME || undefined,
+      password: process.env.NEXT_PRIVATE_REDIS_PASSWORD || undefined,
+      connectTimeout: 5000,
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      retryStrategy: () => null, // Don't retry on failure
+    });
+
+    redis.on("error", (error) => {
+      console.warn("Redis connection error, falling back to no-cache mode:", error.message);
+    });
+
+    redis.on("connect", () => {
+      console.log("Redis connected successfully");
+    });
+  } catch (error) {
+    console.warn("Failed to initialize Redis:", error);
+    redis = null;
+  }
 }
-
-// Fix Redis connection using environment variables
-const redis = new Redis({
-  host: process.env.NEXT_PRIVATE_REDIS_HOST.replace(/[;"]/g, ""),
-  port: parseInt(process.env.NEXT_PRIVATE_REDIS_PORT, 10),
-  username: process.env.NEXT_PRIVATE_REDIS_USERNAME || undefined,
-  password: process.env.NEXT_PRIVATE_REDIS_PASSWORD || undefined,
-  // Performance optimizations
-  connectTimeout: 10000,
-  maxRetriesPerRequest: 3,
-  retryStrategy(times) {
-    return Math.min(times * 100, 3000); // Progressive retry with max 3s delay
-  },
-  enableOfflineQueue: false, // Don't queue commands when disconnected
-});
-
-// Add connection error handling
-redis.on("error", (error) => {
-  console.error("Redis connection error:", error);
-  // Consider implementing a retry mechanism or alerting system here
-});
-
-redis.on("connect", () => {
-  console.log("Redis connected successfully");
-});
-
-redis.on("close", () => {
-  console.log("Redis connection closed");
-});
-
-redis.on("reconnecting", () => {
-  console.log("Redis reconnecting...");
-});
 
 export default redis;
 
-// Cache helpers
+// Cache helpers with fallback
 export async function getCache<T>(key: string): Promise<T | null> {
+  if (!redis) return null;
+  
   try {
     const cachedData = await redis.get(key);
     if (!cachedData) return null;
-    try {
-      return JSON.parse(cachedData) as T;
-    } catch (parseError) {
-      console.error("Error parsing cached data:", parseError);
-      // Consider invalidating the cache here
-      await invalidateCache(key);
-      return null;
-    }
+    return JSON.parse(cachedData) as T;
   } catch (error) {
-    console.error("Redis cache fetch error:", error);
+    console.warn("Redis cache fetch error:", error);
     return null;
   }
 }
@@ -68,33 +54,21 @@ export async function setCache<T>(
   data: T,
   expireTime = 3600
 ): Promise<void> {
+  if (!redis) return;
+  
   try {
     await redis.setex(key, expireTime, JSON.stringify(data));
   } catch (error) {
-    console.error("Redis cache set error:", error);
-    // Consider retrying or alerting here
+    console.warn("Redis cache set error:", error);
   }
 }
 
 export async function invalidateCache(key: string): Promise<void> {
+  if (!redis) return;
+  
   try {
     await redis.del(key);
   } catch (error) {
-    console.error("Redis cache invalidation error:", error);
-    // Consider retrying or alerting here
-  }
-}
-
-// Optional: Function to check cache validity
-export async function isCacheValid(
-  key: string,
-  maxAge = 3600
-): Promise<boolean> {
-  try {
-    const ttl = await redis.ttl(key);
-    return ttl > 0 && ttl <= maxAge;
-  } catch (error) {
-    console.error("Error checking cache validity:", error);
-    return false;
+    console.warn("Redis cache invalidation error:", error);
   }
 }
